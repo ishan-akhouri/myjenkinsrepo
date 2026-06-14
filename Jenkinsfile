@@ -13,15 +13,9 @@ pipeline {
         }
         stage('Run Script') {
             steps {
-                sh "./script.sh ${params.FIRSTNAME} ${params.LASTNAME} ${params.SHOW}"
-            }
-        }
-        stage('Show Notice') {
-            when {
-                expression { params.SHOW == false }
-            }
-            steps {
-                echo "Reminder: name was not displayed because SHOW was false"
+                withCredentials([string(credentialsId: 'demo-api-key', variable: 'API_KEY')]) {
+                    sh "./script.sh ${params.FIRSTNAME} ${params.LASTNAME} ${params.SHOW} \$API_KEY"
+                }
             }
         }
     }
