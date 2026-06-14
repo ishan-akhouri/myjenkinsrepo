@@ -6,10 +6,22 @@ pipeline {
         booleanParam(name: 'SHOW', defaultValue: false, description: 'Show name?')
     }
     stages {
-        stage('Run Script') {
+        stage('Prepare') {
             steps {
                 sh "chmod +x script.sh"
+            }
+        }
+        stage('Run Script') {
+            steps {
                 sh "./script.sh ${params.FIRSTNAME} ${params.LASTNAME} ${params.SHOW}"
+            }
+        }
+        stage('Show Notice') {
+            when {
+                expression { params.SHOW == false }
+            }
+            steps {
+                echo "Reminder: name was not displayed because SHOW was false"
             }
         }
     }
