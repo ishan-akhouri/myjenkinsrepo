@@ -1,31 +1,58 @@
 pipeline {
     agent any
     parameters {
-        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
-        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests?')
+        booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip manual approval?')
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Apply or destroy infrastructure')
     }
     stages {
-        stage('Build') {
+        stage('Terraform Init') {
             steps {
-                echo "Building for ${params.ENVIRONMENT}..."
+                withCredentials([
+                    usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'db-password', variable: 'TF_VAR_db_password')
+                ]) {
+                    sh 'terraform init'
+                }
             }
         }
-        stage('Test') {
-            when {
-                expression { params.SKIP_TESTS == false }
-            }
+        stage('Terraform Plan') {
             steps {
-                echo "Running tests..."
+                withCredentials([
+                    usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'db-password', variable: 'TF_VAR_db_password')
+                ]) {
+                    script {
+                        if (params.ACTION == 'apply') {
+                            sh 'terraform plan -out=tfplan'
+                        } else {
+                            sh 'terraform plan -destroy -out=tfplan'
+                        }
+                    }
+                }
             }
         }
-        stage('Deploy') {
+        stage('Approval') {
             when {
-                expression { params.ENVIRONMENT == 'prod' }
+                expression { params.AUTO_APPROVE == false }
             }
             steps {
-                echo "Deploying to PRODUCTION"
+                input message: "${params.ACTION.toUpperCase()} this plan?", ok: 'Confirm'
             }
+        }
+        stage('Terraform Execute') {
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                    string(credentialsId: 'db-password', variable: 'TF_VAR_db_password')
+                ]) {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+    }
+    post {
+        success {
+            sh 'terraform output || true'
         }
     }
 }
-
