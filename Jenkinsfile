@@ -1,16 +1,30 @@
-@Library('myjenkins-sharedlib') _
-
 pipeline {
     agent any
     parameters {
-        string(name: 'FIRSTNAME', defaultValue: '', description: 'First name')
-        string(name: 'LASTNAME', defaultValue: '', description: 'Last name')
-        booleanParam(name: 'SHOW', defaultValue: false, description: 'Show name?')
+        booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip manual approval?')
     }
     stages {
-        stage('Run Script') {
+        stage('Terraform Init') {
             steps {
-                greetUser(params.FIRSTNAME, params.LASTNAME, "${params.SHOW}")
+                sh 'terraform init'
+            }
+        }
+        stage('Terraform Plan') {
+            steps {
+                sh 'terraform plan -out=tfplan'
+            }
+        }
+        stage('Approval') {
+            when {
+                expression { params.AUTO_APPROVE == false }
+            }
+            steps {
+                input message: 'Apply this Terraform plan?', ok: 'Apply'
+            }
+        }
+        stage('Terraform Apply') {
+            steps {
+                sh 'terraform apply -auto-approve tfplan'
             }
         }
     }
