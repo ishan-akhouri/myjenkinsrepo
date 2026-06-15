@@ -1,31 +1,31 @@
 pipeline {
     agent any
     parameters {
-        booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip manual approval?')
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
+        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests?')
     }
     stages {
-        stage('Terraform Init') {
+        stage('Build') {
             steps {
-                sh 'terraform init'
+                echo "Building for ${params.ENVIRONMENT}..."
             }
         }
-        stage('Terraform Plan') {
-            steps {
-                sh 'terraform plan -out=tfplan'
-            }
-        }
-        stage('Approval') {
+        stage('Test') {
             when {
-                expression { params.AUTO_APPROVE == false }
+                expression { params.SKIP_TESTS == false }
             }
             steps {
-                input message: 'Apply this Terraform plan?', ok: 'Apply'
+                echo "Running tests..."
             }
         }
-        stage('Terraform Apply') {
+        stage('Deploy') {
+            when {
+                expression { params.ENVIRONMENT == 'prod' }
+            }
             steps {
-                sh 'terraform apply -auto-approve tfplan'
+                echo "Deploying to PRODUCTION"
             }
         }
     }
 }
+
